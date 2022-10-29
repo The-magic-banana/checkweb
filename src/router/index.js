@@ -7,6 +7,7 @@ import Home from "../components/common/Home"
 import Register from "../components/page/Register";
 import UserHome from "../components/common/UserHome";
 import ManagerHome from "../components/common/ManagerHome";
+import DepartCheck from "../components/page/DepartCheck";
 Vue.use(Router)
 
 export default new Router({
@@ -32,9 +33,14 @@ export default new Router({
           component:UserList
         },
         {
-          path:"/add-user",
+          path:"add-user",
           name:"AddUser",
           component:AddUser
+        },
+        {
+          path:"depart",
+          name:"Depart",
+          component:DepartCheck
         }
       ]
     },

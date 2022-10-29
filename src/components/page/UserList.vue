@@ -21,17 +21,30 @@
       <a-row>
         <a-col span="2">
           <a-button type="primary">
-            <router-link to="/add-user">添加员工</router-link>
+            <router-link to="/check/add-user">添加员工</router-link>
           </a-button>
         </a-col>
         <a-col span="22">
-          <a-table :columns="columns" :data-source="data" bordered>
+          <a-table :columns="columns" :data-source="dataTable" bordered>
             <template
               v-for="col in ['name', 'age', 'department','username','address','level','phone']"
               :slot="col"
               slot-scope="text, record, index"
             >
-              <div :key="col">
+              <div :key="col" v-if="col === 'level' && record.editable">
+                <a-select :default-value="record.level" style="width: 120px" @select="selectChange(value,record)">
+                  <a-select-option value="领导">
+                    领导
+                  </a-select-option>
+                  <a-select-option value="部门主管">
+                    部门主管
+                  </a-select-option>
+                  <a-select-option value="员工">
+                    员工
+                  </a-select-option>
+                </a-select>
+              </div>
+              <div :key="col" v-else>
                 <a-input
                   v-if="record.editable"
                   style="margin: -5px 0"
@@ -72,6 +85,7 @@
   </a-layout>
 </template>
 <script>
+import {deepCopy} from "../../api/utils/deepcopy";
 const columns = [
   {
     title: '姓名',
@@ -118,14 +132,14 @@ const columns = [
   },
 ];
 
-const data = [];
+const dataTable = [];
 
 var Cache = [];
 
 export default {
   data() {
     return {
-      data,
+      dataTable,
       columns,
       editingKey: '',
       deletingKey:"",
@@ -144,48 +158,90 @@ export default {
       let TmpData = res.data.list;
       for(let i=0,count=0;i<TmpData.length;i++){
         TmpData[i]['key'] = count++;
-        switch ()
+        switch (TmpData[i]['level']){
+          case 0:
+            TmpData[i]['level'] = "领导";
+            break;
+          case 1:
+            TmpData[i]['level'] = "部门主管";
+            break
+          case 2:
+            TmpData[i]['level'] = "员工";
+            break;
+        }
       }
-      this.data = TmpData;
-      Cache = TmpData;
+      this.dataTable = TmpData;
+      Cache = deepCopy(TmpData);
     })
   },
   methods: {
     handleChange(value, key, column) {
-      const target = this.data.find(item => key === item.key);
+      const newData = [...this.dataTable]
+      const target = newData.find(item => key === item.key);
       if (target) {
         target[column] = value;
+        this.data = newData;
+      }
+    },
+    selectChange(value,record){
+      const newData = [...this.dataTable]
+      const target = newData.find(item => record.key === item.key)
+      if(target){
+        target['level'] = value;
+        this.dataTable = newData;
       }
     },
     edit(key) {
-      const target = this.data.find(item => key === item.key);
+      const newData = [...this.dataTable]
+      const target = newData.find(item => key === item.key);
       this.editingKey = key;
       if (target) {
         target.editable = true;
+        this.dataTable = newData;
       }
     },
     InfoDelete(key){
-      const target = this.data.find(item => key === item.key);
+      const target = this.dataTable.find(item => key === item.key);
       this.deletingKey = key;
       if(target){
         target.deleteable = true;
       }
     },
     save(key) {
-      const target = this.data.find(item => key === item.key);
+      const newData = [...this.dataTable]
+      const target = newData.find(item => key === item.key);
       const old = Cache.find(item => item.key === key)
-      if (target && old) {
-        console.log(target);
-        console.log(old);
-        delete target.editable;
-        target['level'] = parseInt(target['level'])
-        delete target['key']
-        this.$api.demo.update(target).then(res =>{
-          if(res.code===1){
-            console.log("已保存")
+      if (target) {
+        for(let key in target){
+          if(target[key]===old[key]){
+            old[key] = null;
           }
           else{
-            alert("员工信息同步失败")
+            old[key] = target[key];
+          }
+        }
+        switch (old['level']){
+          case "领导":
+            old['level'] = 0;
+            break;
+          case "部门主管":
+            old['level'] = 1;
+            break
+          case "员工":
+            old['level'] = 2;
+            break;
+        }
+        old['userId'] = target['userId'];
+        delete old['key'];
+        target.editable = false;
+        delete old['editable']
+        this.dataTable = newData;
+        this.$api.demo.update(old).then(res =>{
+          if(res.code===1){
+            console.log("已保存");
+          }
+          else{
+            alert("员工信息同步失败");
           }
         })
       }
@@ -195,15 +251,15 @@ export default {
       this.editingKey = '';
     },
     cancel(key) {
-      const newData = [...this.data];
+      const newData = [...this.dataTable];
       const target = newData.find(item => key === item.key);
       this.editingKey = '';
       this.deletingKey = '';
       if (target) {
-        Object.assign(target, this.data.find(item => key === item.key));
+        Object.assign(target, this.dataTable.find(item => key === item.key));
         delete target.editable;
         delete target.deleteable;
-        this.data = newData;
+        this.dataTable = newData;
       }
       else{
         delete target.editable;
@@ -211,8 +267,8 @@ export default {
       }
     },
     ondelete(key){
-      const worker = this.data.find(item => item.key===key);
-      this.data.splice(this.data.findIndex(item => item.key === key), 1);
+      const worker = this.dataTable.find(item => item.key===key);
+      this.dataTable.splice(this.dataTable.findIndex(item => item.key === key), 1);
       delete worker['key']
       worker['isDisable'] = 1
       this.$api.demo.update(worker).then(res =>{
@@ -232,7 +288,7 @@ export default {
         pageNum: 1
       }
         this.$api.demo.search(params).then(res => {
-          this.data = res.data.list;
+          this.dataTable = res.data.list;
         })
     }
   },
